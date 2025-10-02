@@ -8,7 +8,6 @@ const router = express.Router();
 // @access  Private
 router.get("/profile", async (req, res) => {
   try {
-    // هذا مسار مؤقت، سنحتاج إلى إضافة المصادقة لاحقًا
     res.json({ message: "Profile route" });
   } catch (err) {
     console.error("Error getting profile:", err.message);
@@ -21,10 +20,22 @@ router.get("/profile", async (req, res) => {
 // @access  Private
 router.put("/profile", async (req, res) => {
   try {
-    // هذا مسار مؤقت، سنحتاج إلى إضافة المصادقة لاحقًا
     res.json({ message: "Profile update route" });
   } catch (err) {
     console.error("Error updating profile:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   GET /api/users/stats
+// @desc    Get user statistics
+// @access  Private
+router.get("/stats", async (req, res) => {
+  try {
+    // مؤقتًا نرسل رسالة تجريبية
+    res.json({ totalUsers: 100, activeUsers: 80 });
+  } catch (err) {
+    console.error("Error getting stats:", err.message);
     res.status(500).send("Server error");
   }
 });

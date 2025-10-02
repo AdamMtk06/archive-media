@@ -1,67 +1,21 @@
-const mongoose = require('mongoose');
+// backend/models/mediaModel.js
+import mongoose from 'mongoose';
+const { Schema } = mongoose;
 
-const mediaSchema = new mongoose.Schema({
-  filename: {
-    type: String,
-    required: true
-  },
-  originalName: {
-    type: String,
-    required: true
-  },
-  mimeType: {
-    type: String,
-    required: true
-  },
-  size: {
-    type: Number,
-    required: true
-  },
-  path: {
-    type: String,
-    required: true
-  },
-  thumbnail: {
-    type: String,
-    default: null
-  },
-  uploadedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  tags: [{
-    type: String
-  }],
-  description: {
-    type: String,
-    default: ''
-  },
-  category: {
-    type: String,
-    enum: ['image', 'video', 'audio', 'document'],
-    required: true
-  }
-}, {
-  timestamps: true
+const MediaSchema = new Schema({
+  title: { type: String, required: true },
+  description: { type: String },
+  type: { type: String, required: true, enum: ['image', 'video', 'audio', 'document'] },
+  tags: [String],
+  category: String,
+  privacy: { type: String, enum: ['public', 'private', 'unlisted'], default: 'public' },
+  filename: String,
+  fileId: { type: Schema.Types.ObjectId, ref: 'Upload.files' },
+  owner: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  createdAt: { type: Date, default: Date.now }
 });
 
-// تحديد الفئة تلقائيًا بناءً على نوع الملف
-mediaSchema.pre('save', function(next) {
-  if (this.mimeType.startsWith('image/')) {
-    this.category = 'image';
-  } else if (this.mimeType.startsWith('video/')) {
-    this.category = 'video';
-  } else if (this.mimeType.startsWith('audio/')) {
-    this.category = 'audio';
-  } else {
-    this.category = 'document';
-  }
-  next();
-});
+// ✅ منع OverwriteModelError
+const Media = mongoose.models.Media || mongoose.model('Media', MediaSchema);
 
-module.exports = mongoose.model('Media', mediaSchema);
+export default Media;

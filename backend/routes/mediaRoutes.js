@@ -1,60 +1,65 @@
-import express from "express";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
-import { protect, admin } from "../middlewares/authMiddleware.js";
-import {
-  uploadMedia,
-  getUserMedia,
-  getMediaById,
-  deleteMedia,
-  getUserStats,
-  searchMedia,
-  adminDeleteMedia,
-  adminGetAllMedia,
-} from "../controllers/mediaController.js";
+import express from 'express';
+import { uploadMedia, getUserMedia, getMediaFile, deleteMedia } from '../controllers/mediaController.js';
+import { protect } from '../middlewares/authMidlleware.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
 
-// إعداد التخزين المؤقت
-const tempStorage = multer.diskStorage({
+// تأكد أن مجلد uploads موجود
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+// إعداد Multer لتخزين الملفات في مجلد uploads
+const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const tempDir = path.join(process.cwd(), "temp");
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-    cb(null, tempDir);
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
-  },
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
 });
+const upload = multer({ storage });
 
-// فلتر الملفات
-const fileFilter = (req, file, cb) => {
-  // قبول جميع أنواع الملفات
-  cb(null, true);
-};
-
-const upload = multer({ 
-  storage: tempStorage,
-  limits: {
-    fileSize: 1024 * 1024 * 100, // 100MB
+// مسار رفع ملف جديد
+router.post(
+  '/',
+  protect,
+  upload.single('file'),
+  async (req, res, next) => {
+    console.log('=== Upload Request Start ===');
+    console.log('User:', req.user ? req.user.id : 'No user');
+    console.log('File:', req.file ? req.file.originalname : 'No file');
+    next();
   },
-  fileFilter: fileFilter,
-});
+  uploadMedia
+);
 
-// مسارات الوسائط للمستخدمين العاديين
-router.post("/upload", protect, upload.single("file"), uploadMedia);
-router.get("/", protect, getUserMedia);
-router.get("/stats/user", protect, getUserStats);
-router.get("/search", protect, searchMedia);
-router.get("/:id", protect, getMediaById);
-router.delete("/:id", protect, deleteMedia);
+// عرض ملفات المستخدم الحالي
+router.get('/user', protect, async (req, res, next) => {
+  console.log('=== Get User Media ===');
+  console.log('User:', req.user ? req.user.id : 'No user');
+  next();
+}, getUserMedia);
 
-// مسارات الوسائط للمشرفين
-router.delete("/admin/:id", protect, admin, adminDeleteMedia);
-router.get("/admin/all", protect, admin, adminGetAllMedia);
+// عرض ملف محدد
+router.get('/file/:id', protect, async (req, res, next) => {
+  console.log('=== Get Media File ===');
+  console.log('User:', req.user ? req.user.id : 'No user');
+  console.log('File ID:', req.params.id);
+  next();
+}, getMediaFile);
+
+// حذف ملف
+router.delete('/:id', protect, async (req, res, next) => {
+  console.log('=== Delete Media File ===');
+  console.log('User:', req.user ? req.user.id : 'No user');
+  console.log('File ID:', req.params.id);
+  next();
+}, deleteMedia);
 
 export default router;

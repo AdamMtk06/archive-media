@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { uploadMedia } from '../services/api';
+import axios from 'axios';
 import '../styles/upload.css';
 
 const UploadPage = () => {
@@ -19,20 +19,33 @@ const UploadPage = () => {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
+  const [uploadError, setUploadError] = useState('');
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
     if (name === 'file') {
-      setFormData({
-        ...formData,
-        file: files[0]
-      });
+      if (files && files[0]) {
+        // تحديد نوع الملف تلقائياً بناءً على امتداده
+        const file = files[0];
+        const fileType = getFileType(file.name);
+        setFormData({ 
+          ...formData, 
+          file: file,
+          type: fileType
+        });
+      }
     } else {
-      setFormData({
-        ...formData,
-        [name]: value
-      });
+      setFormData({ ...formData, [name]: value });
     }
+  };
+
+  // دالة لتحديد نوع الملف بناءً على الامتداد
+  const getFileType = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image';
+    if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'ogg', 'aac', 'flac'].includes(ext)) return 'audio';
+    return 'document';
   };
 
   const handleDrag = (e) => {
@@ -51,9 +64,12 @@ const UploadPage = () => {
     setDragActive(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFormData({
-        ...formData,
-        file: e.dataTransfer.files[0]
+      const file = e.dataTransfer.files[0];
+      const fileType = getFileType(file.name);
+      setFormData({ 
+        ...formData, 
+        file: file,
+        type: fileType
       });
     }
   };
@@ -65,58 +81,108 @@ const UploadPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // التحقق من وجود ملف
     if (!formData.file) {
-      setMessage('الرجاء اختيار ملف للرفع');
+      setUploadError('الرجاء اختيار ملف للرفع');
+      return;
+    }
+    
+    // التحقق من وجود عنوان
+    if (!formData.title.trim()) {
+      setUploadError('الرجاء إدخال عنوان للملف');
       return;
     }
     
     setUploading(true);
     setProgress(0);
-    
+    setMessage('');
+    setUploadError('');
+
     try {
-      const uploadData = new FormData();
-      uploadData.append('file', formData.file);
-      uploadData.append('title', formData.title);
-      uploadData.append('description', formData.description);
-      uploadData.append('type', formData.type);
-      uploadData.append('tags', formData.tags);
-      uploadData.append('category', formData.category);
-      uploadData.append('privacy', formData.privacy);
+      const data = new FormData();
+      data.append('file', formData.file);
+      data.append('title', formData.title);
+      data.append('description', formData.description);
+      data.append('type', formData.type);
+      data.append('tags', formData.tags);
+      data.append('category', formData.category);
+      data.append('privacy', formData.privacy);
       
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 10;
-        });
-      }, 200);
+      // الحصول على التوكن من localStorage
+      const token = localStorage.getItem('token');
       
-      await uploadMedia(uploadData);
+      if (!token) {
+        setUploadError('يجب تسجيل الدخول أولاً');
+        setUploading(false);
+        return;
+      }
       
-      clearInterval(progressInterval);
-      setProgress(100);
+      const response = await axios.post('http://localhost:5000/api/media', data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          setProgress(percentCompleted);
+        }
+      });
       
       setMessage('تم رفع الملف بنجاح');
       
-      // Redirect to media page after a short delay
+      // إعادة التوجيه بعد فترة قصيرة
       setTimeout(() => {
         navigate('/media');
       }, 1500);
+      
     } catch (error) {
-      setMessage('فشل رفع الملف: ' + error.message);
+      console.error('Upload error:', error);
+      if (error.response) {
+        // خطأ من الخادم
+        setUploadError(error.response.data.message || 'فشل رفع الملف');
+      } else if (error.request) {
+        // لم يتم استلام استجابة
+        setUploadError('لا يوجد اتصال بالخادم');
+      } else {
+        // خطأ في الإعداد
+        setUploadError('حدث خطأ أثناء رفع الملف');
+      }
     } finally {
       setUploading(false);
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      file: null,
+      title: '',
+      description: '',
+      type: 'image',
+      tags: '',
+      category: '',
+      privacy: 'public'
+    });
+    setMessage('');
+    setUploadError('');
   };
 
   return (
     <div className="upload-page">
       <h1>رفع وسائط جديدة</h1>
 
-      {message && <div className={`alert ${message.includes('نجاح') ? 'alert-success' : 'alert-danger'}`}>{message}</div>}
+      {message && (
+        <div className="alert alert-success">
+          {message}
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="alert alert-danger">
+          {uploadError}
+        </div>
+      )}
 
       <div className="upload-container">
         <form onSubmit={handleSubmit} className="upload-form">
@@ -143,6 +209,7 @@ const UploadPage = () => {
                   {formData.type === 'image' && '🖼️'}
                   {formData.type === 'video' && '🎬'}
                   {formData.type === 'audio' && '🎵'}
+                  {formData.type === 'document' && '📄'}
                 </div>
                 <div>
                   <h3>{formData.file.name}</h3>
@@ -163,7 +230,7 @@ const UploadPage = () => {
               <div className="file-upload-content">
                 <div className="file-upload-icon">📤</div>
                 <h3>اسحب وأفلت الملف هنا أو انقر للاختيار</h3>
-                <p>يدعم الصور والفيديوهات والصوتيات</p>
+                <p>يدعم الصور والفيديوهات والصوتيات والمستندات</p>
                 <button type="button">اختيار ملف</button>
               </div>
             )}
@@ -171,7 +238,7 @@ const UploadPage = () => {
           
           <div className="upload-details">
             <div className="form-group">
-              <label>العنوان</label>
+              <label>العنوان *</label>
               <input
                 type="text"
                 name="title"
@@ -204,6 +271,7 @@ const UploadPage = () => {
                   <option value="image">صورة</option>
                   <option value="video">فيديو</option>
                   <option value="audio">صوت</option>
+                  <option value="document">مستند</option>
                 </select>
               </div>
               
@@ -278,20 +346,30 @@ const UploadPage = () => {
               </div>
             )}
             
-            <button 
-              type="submit" 
-              disabled={uploading || !formData.file}
-              className="btn-primary"
-            >
-              {uploading ? (
-                <>
-                  <div className="loading-spinner"></div>
-                  جاري الرفع...
-                </>
-              ) : (
-                'رفع الوسائط'
-              )}
-            </button>
+            <div className="form-actions">
+              <button 
+                type="button" 
+                className="btn-secondary"
+                onClick={resetForm}
+                disabled={uploading}
+              >
+                إعادة تعيين
+              </button>
+              <button 
+                type="submit" 
+                disabled={uploading || !formData.file}
+                className="btn-primary"
+              >
+                {uploading ? (
+                  <>
+                    <div className="loading-spinner"></div>
+                    جاري الرفع...
+                  </>
+                ) : (
+                  'رفع الوسائط'
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
