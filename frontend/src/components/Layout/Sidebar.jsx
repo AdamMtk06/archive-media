@@ -14,9 +14,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isOpen ? 'mobile-open' : ''}`}>
-      <button className="sidebar-toggle" onClick={handleToggleCollapse}>
-        {isCollapsed ? '◀' : '▶'}
-      </button>
+      
       
       {!isCollapsed && (
         <>

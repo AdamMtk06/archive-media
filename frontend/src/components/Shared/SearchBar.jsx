@@ -10,15 +10,17 @@ const SearchBar = ({ onSearch }) => {
 
   return (
     <form className="search-bar" onSubmit={handleSearch}>
+      
+      <button type="submit">
+        🔍
+      </button>
       <input
         type="text"
         placeholder="ابحث في وسائطك..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <button type="submit">
-        🔍
-      </button>
+
     </form>
   );
 };
